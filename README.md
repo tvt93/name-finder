@@ -3,7 +3,7 @@
 Rank Belgian newborn first names against our own criteria.
 
 Live page on claude.ai (owner only, org policy blocks public links): https://claude.ai/artifact/5oKxax2nBJPrBvsuSae3xF
-Public copy for the family: GitHub Pages, served from `docs/` (see Hosting).
+Public copy for the family: https://tvt93.github.io/name-finder/ (GitHub Pages, served from `docs/`, repo https://github.com/tvt93/name-finder).
 
 ## Layout
 
