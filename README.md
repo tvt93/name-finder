@@ -2,7 +2,8 @@
 
 Rank Belgian newborn first names against our own criteria.
 
-Live page (phone-friendly): https://claude.ai/artifact/5oKxax2nBJPrBvsuSae3xF
+Live page on claude.ai (owner only, org policy blocks public links): https://claude.ai/artifact/5oKxax2nBJPrBvsuSae3xF
+Public copy for the family: GitHub Pages, served from `docs/` (see Hosting).
 
 ## Layout
 
@@ -12,6 +13,8 @@ Live page (phone-friendly): https://claude.ai/artifact/5oKxax2nBJPrBvsuSae3xF
 - `data/groups/` – name-group classification. `input_NN.txt` are the batches that were sent to Claude agents, `batch_NN.json` their answers (name → group code), `batch_13_manual.json` hand fixes. Edit a batch file (or add another `batch_*.json`, later files win) and rebuild to correct a group.
 - `data/meanings/` – origin-and-meaning notes. `input_NN.txt` are the batches sent to Claude agents (every spelling seen 2016–2025), `batch_NN_a/b.json` their notes, `batch_15_manual.json` hand fixes. Edit or add a `batch_*.json` and rebuild to correct a note.
 - `build_data.py` – turns the raw files into `app/data/names.js` and `app/data/meanings.js` (`uv run build_data.py`).
+- `make_dist.py` – wraps `app/index.html` in a full HTML document and copies the data files into `docs/`, the folder GitHub Pages serves.
+- `docs/` – generated standalone build. Do not edit by hand; run `python make_dist.py`.
 - `app/index.html` – the app. `app/data/names.js` and `app/data/meanings.js` are loaded as plain scripts so the page also opens from disk.
 
 ## Per-name fields
@@ -37,6 +40,10 @@ Adding a criterion = one entry in the `CRIT` object in `app/index.html` (label, 
 ## Favourites
 
 ♥ and ✕ on any row mark a name as liked or disliked. Disliked names are hidden from the results (toggle in the results header). The Favourites tab lists liked names, summarises what they share (sex, syllables, letters, group, first/last letters, endings, popularity, English score, vowels), ranks the 20 closest names in the data by a similarity score, and can ask Claude for 25 more ideas, showing those that exist in the Belgian data. Likes and dislikes are stored in the artifact's shared database (`prefs/current`) for signed-in editors, with a localStorage fallback. The page is shared by public link, so a signed-out viewer keeps likes on their own device. Origin and meaning come from the built-in notes for the ~5,500 names seen in the last ten years; only rarer names fall back to a live Claude lookup (signed-in viewers) or to the Behind the Name / Wikipedia links. The Claude suggestions button needs a signed-in viewer.
+
+## Hosting
+
+The repository lives on a personal github.com account (never the Verity GitHub). GitHub Pages publishes the `docs/` folder of `main`. After changing the page: `python make_dist.py`, commit, push. The claude.ai artifact is republished separately from `app/index.html`.
 
 ## Updating the data
 
