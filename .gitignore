@@ -1,0 +1,7 @@
+# raw source files are large and re-downloadable (see README)
+data/raw/*.xlsx
+data/raw/*.csv
+data/raw/*.zip
+dist.zip
+__pycache__/
+.venv/

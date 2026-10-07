@@ -1,0 +1,676 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<style>
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;font:14px system-ui,sans-serif}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<title>Name Finder</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+/* Layout: two tabs (Find / Favourites), one column, criteria stack on top of the ranked list, detail as a bottom sheet. */
+:root{
+  --bg:#f4f6f3; --surface:#ffffff; --fg:#1b2529; --muted:#5e6b70; --line:#d9dfdb;
+  --accent:#1f7a8c; --accent-soft:#dcecef; --boy:#1f7a8c; --girl:#8a4b7d; --warn:#b4571c; --like:#c0392b;
+  --good:#2f7d4f; --display:"Fraunces",Georgia,"Times New Roman",serif; --body:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --shadow:0 10px 30px rgba(27,37,41,.14);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#141a1c; --surface:#1d2528; --fg:#e7ecea; --muted:#9aa7ab; --line:#2f3b3f;
+  --accent:#5fb8c8; --accent-soft:#1f3a41; --boy:#5fb8c8; --girl:#d08bc0; --warn:#e6a06a; --like:#ef7b6d; --good:#7cc49a;
+  --shadow:0 10px 30px rgba(0,0,0,.5); color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#141a1c; --surface:#1d2528; --fg:#e7ecea; --muted:#9aa7ab; --line:#2f3b3f;
+  --accent:#5fb8c8; --accent-soft:#1f3a41; --boy:#5fb8c8; --girl:#d08bc0; --warn:#e6a06a; --like:#ef7b6d; --good:#7cc49a;
+  --shadow:0 10px 30px rgba(0,0,0,.5); color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.4;margin:0;padding-block:0 40px;padding-inline:16px}
+.wrap{max-width:720px;margin:0 auto;min-width:0}
+h1{font-family:var(--display);font-weight:600;font-size:2rem;margin:20px 0 2px;text-wrap:balance}
+.sub{color:var(--muted);margin:0 0 14px;font-size:.95rem}
+h2{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:22px 0 8px;font-weight:700}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+
+/* tabs */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:6px}
+.tabs button{background:transparent;border:0;border-bottom:3px solid transparent;padding:8px 14px;font-weight:700;color:var(--muted);margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+.tabs .cnt{font-weight:400;font-variant-numeric:tabular-nums}
+
+/* search */
+.search{position:relative;margin:12px 0 4px}
+.search input{width:100%;font:inherit;font-size:1.05rem;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 40px 10px 14px}
+.search .clr{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:transparent;border:0;color:var(--muted);font-size:1.3rem;padding:4px 8px}
+.hits{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:4px}
+
+/* criteria: one wrapping line per criterion */
+.crit-head-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.crit-head-row h2{margin:22px 0 8px}
+.crit-head-row button{background:transparent;border:0;color:var(--accent);font-size:.85rem;padding:0;text-decoration:underline}
+.crit-sum{color:var(--muted);font-size:.9rem;margin:0 0 8px;line-height:1.6}
+.crit-sum b{color:var(--fg);font-weight:600}
+.crit{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:6px 8px 6px 10px;margin-bottom:6px;display:grid;grid-template-columns:minmax(0,1fr) 200px auto 110px 26px;align-items:center;gap:6px 10px}
+.crit-title{grid-column:1;font-weight:600;font-size:.95rem;min-width:0;cursor:help}
+.crit .params{grid-column:2;justify-content:flex-end}
+.crit .seg{grid-column:3}
+.crit .weight{grid-column:4}
+.crit .x{grid-column:5;justify-self:end}
+.crit .checks{grid-column:1/-1}
+@media(max-width:600px){
+  .crit{grid-template-columns:minmax(0,1fr) auto}
+  .crit-title{grid-column:1;grid-row:1}
+  .crit .x{grid-column:2;grid-row:1}
+  .crit .params{grid-column:1/-1;grid-row:2;justify-content:flex-start}
+  .crit .seg{grid-column:1;grid-row:3;justify-self:start}
+  .crit .weight{grid-column:2;grid-row:3;justify-self:end}
+  .crit .checks{grid-row:4}
+}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;flex:none}
+.seg button{background:transparent;border:0;padding:3px 9px;font-size:.78rem;font-weight:600;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.x{background:transparent;border:0;color:var(--muted);font-size:1.2rem;line-height:1;padding:0 4px;border-radius:6px;flex:none}
+.x:hover{color:var(--warn)}
+.params{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.params input[type=number],.params input[type=text],.params select{font:inherit;font-size:.92rem;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:3px 6px;width:4.6em;height:1.9em}
+.params select{width:auto;min-width:5em}
+.params input[type=text]{width:9.8em;letter-spacing:.12em;text-transform:uppercase}
+.params .sep{color:var(--muted);font-size:.85rem}
+.grp-toggle{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:.85rem}
+.grp-toggle.on{border-color:var(--warn);color:var(--warn)}
+.checks{display:flex;gap:4px;flex-wrap:wrap;flex-basis:100%}
+.checks label{display:flex;align-items:center;gap:4px;font-size:.82rem;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:2px 8px 2px 5px}
+.checks label:has(input:checked){border-color:var(--warn);color:var(--warn)}
+.checks input{accent-color:var(--warn);margin:0}
+.weight{display:inline-flex;align-items:center;gap:4px;font-size:.8rem;color:var(--muted)}
+.weight input[type=range]{width:76px;accent-color:var(--accent);margin:0}
+.weight b{color:var(--fg);min-width:1em;text-align:right;font-variant-numeric:tabular-nums}
+.add{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+.add button{background:var(--surface);border:1px dashed var(--line);border-radius:999px;padding:4px 10px;font-size:.82rem;color:var(--muted)}
+.add button:hover{border-color:var(--accent);color:var(--accent)}
+.empty{color:var(--muted);font-size:.95rem;padding:6px 0}
+
+/* name rows */
+.summary{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:.9rem}
+.summary button{background:transparent;border:0;color:var(--accent);padding:0;font-size:.9rem;text-decoration:underline}
+.list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.row{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 8px 8px 12px;display:grid;grid-template-columns:2.2em 1fr auto auto;gap:4px 8px;align-items:center}
+.row.liked{border-color:var(--like)} .row.disliked{opacity:.55}
+.row .main{grid-row:1/3;background:transparent;border:0;text-align:left;padding:0;min-width:0;display:grid;gap:3px}
+.row .rk{grid-row:1/3;color:var(--muted);font-variant-numeric:tabular-nums;font-size:.9rem}
+.nm{font-family:var(--display);font-size:1.35rem;font-weight:500;min-width:0;overflow-wrap:anywhere;line-height:1.15}
+.sx{font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 7px;margin-left:8px;vertical-align:middle;color:#fff;font-family:var(--body)}
+.sx.m{background:var(--boy)} .sx.f{background:var(--girl)}
+.grp{font-size:.72rem;font-weight:600;border:1px solid var(--line);border-radius:999px;padding:0 7px;margin-left:6px;vertical-align:middle;color:var(--muted);font-family:var(--body)}
+.sc{grid-row:1/3;font-variant-numeric:tabular-nums;font-weight:700;color:var(--accent);text-align:right;min-width:3em}
+.meta{color:var(--muted);font-size:.85rem;display:flex;gap:10px;flex-wrap:wrap}
+.bar{height:4px;border-radius:2px;background:var(--accent-soft);overflow:hidden;max-width:260px}
+.bar i{display:block;height:100%;background:var(--accent)}
+.acts{grid-row:1/3;display:flex;flex-direction:column;gap:2px}
+.acts button{background:transparent;border:1px solid transparent;border-radius:8px;width:2.2em;height:2em;font-size:1rem;color:var(--muted);padding:0}
+.acts button:hover{border-color:var(--line)}
+.acts .lk[aria-pressed="true"]{color:var(--like)} .acts .dk[aria-pressed="true"]{color:var(--warn)}
+.more{margin-top:10px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:8px 16px}
+
+/* favourites */
+.facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.fact{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.fact b{display:block;font-size:1.05rem}
+.fact span{font-size:.8rem;color:var(--muted)}
+.btn{background:var(--accent);color:#fff;border:0;border-radius:999px;padding:8px 16px;font-weight:600}
+.btn[disabled]{opacity:.6}
+.ai{white-space:pre-wrap;font-size:.95rem;margin:8px 0 0}
+
+/* detail sheet */
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-height:92%;overflow:auto;background:var(--surface);border-radius:18px 18px 0 0;box-shadow:var(--shadow);z-index:10;padding:14px 16px calc(24px + env(safe-area-inset-bottom,0px))}
+@media(min-width:720px){.sheet{left:50%;transform:translateX(-50%);width:680px;bottom:24px;border-radius:18px;max-height:88%}}
+.sheet-head{display:flex;align-items:flex-start;gap:10px}
+.sheet-head h3{font-family:var(--display);font-size:2rem;font-weight:600;margin:0;flex:1;min-width:0;overflow-wrap:anywhere}
+.sheet-acts{display:flex;gap:6px;margin:6px 0 0}
+.sheet-acts button{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-weight:600}
+.sheet-acts .lk[aria-pressed="true"]{color:var(--like);border-color:var(--like)} .sheet-acts .dk[aria-pressed="true"]{color:var(--warn);border-color:var(--warn)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.stat{background:var(--bg);border-radius:10px;padding:8px 10px}
+.stat b{display:block;font-size:1.25rem;font-variant-numeric:tabular-nums}
+.stat span{font-size:.75rem;color:var(--muted)}
+.sheet h4,.tab h4{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:16px 0 6px;font-weight:700}
+.crits{list-style:none;padding:0;margin:0;display:grid;gap:4px;font-size:.92rem}
+.crits li{display:flex;justify-content:space-between;gap:8px}
+.crits .ok{color:var(--good)} .crits .no{color:var(--warn)}
+.chart{width:100%;max-width:100%;height:auto;display:block;touch-action:pan-y}
+.chart text{font-family:var(--body);font-size:9px;fill:var(--muted)}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.chart .ln{fill:none;stroke:var(--accent);stroke-width:2;stroke-linejoin:round}
+.chart .ar{fill:var(--accent);opacity:.12}
+.chart .pt{fill:var(--accent);stroke:var(--surface);stroke-width:2}
+.chart .cur{stroke:var(--muted);stroke-dasharray:3 3}
+.cap{font-size:.9rem;color:var(--muted);margin:4px 0 0;font-variant-numeric:tabular-nums;min-height:1.3em}
+.vars{display:flex;gap:6px;flex-wrap:wrap}
+.vars button{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:.9rem}
+.vars button b{font-family:var(--display);font-weight:500;font-size:1rem}
+.meaning{white-space:pre-wrap;font-size:.97rem;margin:0;min-height:1.4em}
+.hint{color:var(--muted);font-size:.85rem}
+.links a{color:var(--accent)}
+@media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(20px);opacity:0}}}
+</style>
+
+<div class="wrap">
+  <h1>Name Finder</h1>
+  <p class="sub">Every first name given to 5 or more newborns in Belgium, 1995–2025 (Statbel).</p>
+
+  <div class="tabs" role="tablist">
+    <button type="button" role="tab" id="tab-find" aria-selected="true">Find</button>
+    <button type="button" role="tab" id="tab-fav" aria-selected="false">Favourites <span class="cnt" id="favcnt"></span></button>
+  </div>
+
+  <section class="tab" id="find">
+    <div class="search"><input type="search" id="q" placeholder="Search a name…" autocomplete="off" autocapitalize="words"><button type="button" class="clr" id="qclr" aria-label="Clear search" hidden>×</button></div>
+    <ul class="hits list" id="hits"></ul>
+
+    <div id="finder">
+      <div class="crit-head-row"><h2>Criteria</h2><button type="button" id="crit-toggle">collapse</button></div>
+      <p class="crit-sum" id="crit-sum" hidden></p>
+      <div id="crit-body">
+        <div id="criteria"></div>
+        <div class="add" id="add"></div>
+      </div>
+
+      <h2>Best matches</h2>
+      <div class="summary"><span id="summary"></span><span id="order"></span></div>
+      <ul class="list" id="results"></ul>
+      <button class="more" id="more" hidden>Show 30 more</button>
+    </div>
+  </section>
+
+  <section class="tab" id="fav" hidden>
+    <h2>Names you like</h2>
+    <ul class="list" id="liked"></ul>
+    <p class="empty" id="liked-empty">Tap ♥ on a name in the Find tab to collect it here.</p>
+
+    <div id="analysis" hidden>
+      <h2>What they have in common</h2>
+      <div class="facts" id="facts"></div>
+
+      <h2>Similar names in the Belgian data</h2>
+      <p class="hint">Ranked by how close each name is to your favourites in sound, length, group and popularity. Names you disliked are left out.</p>
+      <ul class="list" id="similar"></ul>
+
+      <h2>More ideas from Claude</h2>
+      <p class="hint">Sends your liked and disliked names to Claude and shows the suggestions that exist in the Belgian data.</p>
+      <button type="button" class="btn" id="ask">Ask Claude for suggestions</button>
+      <p class="ai" id="aiout"></p>
+      <ul class="list" id="ailist"></ul>
+    </div>
+
+    <div id="disliked-wrap" hidden>
+      <h2>Names you dislike <button type="button" class="x" id="toggle-dis" style="font-size:.85rem">show</button></h2>
+      <ul class="list" id="disliked" hidden></ul>
+    </div>
+
+  </section>
+
+</div>
+
+<div id="sheet-root"></div>
+
+<script src="data/names.js"></script>
+<script src="data/meanings.js"></script>
+<script>
+(function(){
+'use strict';
+const $ = s => document.querySelector(s);
+const D = window.NF_DATA;
+if(!D){ $('#results').innerHTML = '<li class="empty">The name data (data/names.js) did not load.</li>'; return; }
+const Y = D.years, LY = Y.length-1, LAST = Y[LY];
+const GROUPS = { dutch:'Dutch / Flemish', french:'French', english:'English', german:'German', scandinavian:'Scandinavian', celtic:'Celtic', italian:'Italian',
+  spanish_portuguese:'Spanish / Portuguese', greek:'Greek', slavic:'Slavic', hebrew:'Hebrew', arabic:'Arabic', turkish:'Turkish', african:'African', asian:'Asian',
+  international:'International', other:'Other', unknown:'Unclassified' };
+const gname = g => GROUPS[g] || g;
+
+// ---------- data prep
+const strip = s => s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+const rows = D.names.map((r,i)=>({ i, name:r[0], sex:r[1], c:r[2], syl:r[3], vow:r[4], vg:r[5], en:r[6], key:r[7], us:r[8], total:r[9], group:r[10]||'unknown',
+  plain: strip(r[0]).replace(/[^a-z]/g,''), last:r[2][LY], avg3:(r[2][LY]+r[2][LY-1]+r[2][LY-2])/3, rank:new Array(Y.length) }));
+rows.forEach(r=>{ r.id = r.name+'|'+r.sex; });
+const byId = new Map(rows.map(r=>[r.id,r]));
+for(const sex of ['m','f']){
+  const mine = rows.filter(r=>r.sex===sex);
+  for(let y=0;y<Y.length;y++){
+    const list = mine.filter(r=>r.c[y]>0).sort((a,b)=>b.c[y]-a.c[y]);
+    let rank=0, prev=-1;
+    list.forEach((r,idx)=>{ if(r.c[y]!==prev){rank=idx+1;prev=r.c[y];} r.rank[y]=rank; });
+  }
+}
+const byKey = new Map(); rows.forEach(r=>{ if(!byKey.has(r.key)) byKey.set(r.key,[]); byKey.get(r.key).push(r); });
+const fmt = n => n.toLocaleString('en-US');
+const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// ---------- criteria registry
+const rangeScore = (v,p,tol) => { if(v>=p.min && v<=p.max) return 1; const d = v<p.min ? p.min-v : v-p.max; return Math.max(0, 1 - d/(tol+1)); };
+const logScore = (v,p) => { v = v>0 ? v : 2.5; if(v>=p.min && v<=p.max) return 1; const b = v<p.min ? Math.max(p.min,1) : Math.max(p.max,1); return Math.max(0, 1 - Math.abs(Math.log10(v/b))); };
+const lettersOf = p => strip(p.letters||'').replace(/[^a-z]/g,'');
+const hits = (r,p) => { const L = lettersOf(p); let n=0; for(const ch of r.plain) if(L.includes(ch)) n++; return n; };
+const excluded = (r,p) => Array.isArray(p.groups) && p.groups.includes(r.group);
+const CRIT = {
+  sex:        { label:'Sex', hint:'Boys or girls', defaults:{value:'f'}, mode:'hard',
+                score:(r,p)=> r.sex===p.value?1:0, hard:(r,p)=> r.sex===p.value,
+                params:[{k:'value',t:'select',label:'Sex',opts:[['f','Girl'],['m','Boy']]}] },
+  groups:     { label:'Name groups to exclude', hint:'Cultural sphere the spelling signals', defaults:{groups:[]}, mode:'hard',
+                score:(r,p)=> excluded(r,p)?0:1, hard:(r,p)=> !excluded(r,p),
+                params:[{k:'groups',t:'multi',label:'Exclude',opts:Object.entries(GROUPS)}] },
+  letters:    { label:'Number of letters', hint:'Letters only, hyphens and spaces not counted', defaults:{min:4,max:6}, mode:'soft',
+                score:(r,p)=> rangeScore(r.plain.length,p,1), hard:(r,p)=> r.plain.length>=p.min && r.plain.length<=p.max,
+                params:[{k:'min',t:'number',label:'Min'},{k:'max',t:'number',label:'Max'}] },
+  syllables:  { label:'Number of syllables', hint:'Estimated, Dutch reading', defaults:{min:2,max:3}, mode:'soft',
+                score:(r,p)=> rangeScore(r.syl,p,1), hard:(r,p)=> r.syl>=p.min && r.syl<=p.max,
+                params:[{k:'min',t:'number',label:'Min'},{k:'max',t:'number',label:'Max'}] },
+  vowels:     { label:'Number of vowels', hint:'Vowel letters, y included when it sounds like one', defaults:{min:2,max:3}, mode:'soft',
+                score:(r,p)=> rangeScore(r.vow,p,1), hard:(r,p)=> r.vow>=p.min && r.vow<=p.max,
+                params:[{k:'min',t:'number',label:'Min'},{k:'max',t:'number',label:'Max'}] },
+  vowelGroups:{ label:'Vowel groups separated by consonants', hint:'Emma = 2, Noah = 1, Louise = 2', defaults:{min:2,max:2}, mode:'soft',
+                score:(r,p)=> rangeScore(r.vg,p,1), hard:(r,p)=> r.vg>=p.min && r.vg<=p.max,
+                params:[{k:'min',t:'number',label:'Min'},{k:'max',t:'number',label:'Max'}] },
+  popLast:    { label:'Popularity in '+LAST, hint:'Babies given the name in Belgium that year', defaults:{min:20,max:250}, mode:'soft',
+                score:(r,p)=> logScore(r.last,p), hard:(r,p)=> r.last>=p.min && r.last<=p.max,
+                params:[{k:'min',t:'number',label:'Min babies'},{k:'max',t:'number',label:'Max babies'}] },
+  pop3:       { label:'Popularity '+Y[LY-2]+'–'+LAST, hint:'Average babies per year over the last 3 years', defaults:{min:20,max:250}, mode:'soft',
+                score:(r,p)=> logScore(r.avg3,p), hard:(r,p)=> r.avg3>=p.min && r.avg3<=p.max,
+                params:[{k:'min',t:'number',label:'Min / year'},{k:'max',t:'number',label:'Max / year'}] },
+  english:    { label:'Pronounceable in English', hint:'1.0 = familiar to English speakers', defaults:{min:0.7}, mode:'soft',
+                score:(r,p)=> r.en, hard:(r,p)=> r.en>=p.min,
+                params:[{k:'min',t:'number',label:'Min score (hard mode)',step:0.05,minv:0,maxv:1}] },
+  exclLetters:{ label:'Letters to exclude', hint:'Anywhere in the name', defaults:{letters:'q x'}, mode:'soft',
+                score:(r,p)=> Math.max(0, 1-0.5*hits(r,p)), hard:(r,p)=> hits(r,p)===0,
+                params:[{k:'letters',t:'text',label:'Letters'}] },
+  exclEnd:    { label:'Last letters to exclude', hint:'The name may not end with these', defaults:{letters:'s'}, mode:'hard',
+                score:(r,p)=> lettersOf(p).includes(r.plain.slice(-1))?0:1, hard:(r,p)=> !lettersOf(p).includes(r.plain.slice(-1)),
+                params:[{k:'letters',t:'text',label:'Letters'}] },
+  exclStart:  { label:'First letters to exclude', hint:'The name may not start with these', defaults:{letters:'k'}, mode:'hard',
+                score:(r,p)=> lettersOf(p).includes(r.plain[0])?0:1, hard:(r,p)=> !lettersOf(p).includes(r.plain[0]),
+                params:[{k:'letters',t:'text',label:'Letters'}] },
+};
+const ORDER = Object.keys(CRIT);
+
+// ---------- state + persistence
+let state = { criteria:[ {id:'sex',mode:'hard',weight:3,params:{value:'f'}}, {id:'syllables',mode:'soft',weight:3,params:{min:2,max:3}}, {id:'popLast',mode:'soft',weight:2,params:{min:20,max:250}} ] };
+let prefs = { liked:[], disliked:[] };   // arrays of "Name|sex", in the order added
+let shown = 30, showDisliked = false;
+let db = null, sample = null, saveTimer = null, prefTimer = null, dbWritable = true, prefChain = Promise.resolve();
+try { const s = localStorage.getItem('nf-state'); if(s) state = JSON.parse(s); } catch(e){}
+try { const s = localStorage.getItem('nf-prefs'); if(s) prefs = Object.assign({liked:[],disliked:[]}, JSON.parse(s)); } catch(e){}
+
+function persist(){
+  try { localStorage.setItem('nf-state', JSON.stringify(state)); } catch(e){}
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(()=>{ if(db && dbWritable) db.doc('config/current').set({ criteria: state.criteria, savedAt: new Date().toISOString() }).catch(()=>{ dbWritable=false; }); }, 600);
+}
+function persistPrefs(){
+  try { localStorage.setItem('nf-prefs', JSON.stringify(prefs)); } catch(e){}
+  clearTimeout(prefTimer);
+  prefTimer = setTimeout(()=>{ if(db && dbWritable) prefChain = prefChain.then(()=> db.doc('prefs/current').set({ liked:prefs.liked, disliked:prefs.disliked, savedAt:new Date().toISOString() })).catch(()=>{ dbWritable=false; }); }, 500);
+}
+const isLiked = r => prefs.liked.includes(r.id), isDisliked = r => prefs.disliked.includes(r.id);
+function setPref(r, kind){ // toggle like or dislike; the two are exclusive
+  const other = kind==='liked' ? 'disliked' : 'liked';
+  const on = !prefs[kind].includes(r.id);
+  prefs[kind] = prefs[kind].filter(x=>x!==r.id); prefs[other] = prefs[other].filter(x=>x!==r.id);
+  if(on) prefs[kind].push(r.id);
+  persistPrefs(); refreshAll();
+}
+
+// ---------- scoring
+let current = null;
+function compute(){
+  const active = state.criteria.map(c=>({...c, def:CRIT[c.id]})).filter(c=>c.def);
+  const hard = active.filter(c=>c.mode==='hard'), soft = active.filter(c=>c.mode==='soft');
+  const wsum = soft.reduce((a,c)=>a+c.weight,0);
+  const out = []; let hidden = 0;
+  for(const r of rows){
+    let ok = true;
+    for(const c of hard){ if(!c.def.hard(r,c.params)){ ok=false; break; } }
+    if(!ok) continue;
+    if(!showDisliked && isDisliked(r)){ hidden++; continue; }
+    let s = 0;
+    for(const c of soft) s += c.weight * c.def.score(r,c.params);
+    out.push({ r, score: wsum? s/wsum : 1 });
+  }
+  out.sort((a,b)=> b.score-a.score || b.r.avg3-a.r.avg3 || b.r.total-a.r.total || a.r.name.localeCompare(b.r.name));
+  return { out, soft, hard, active, hidden };
+}
+
+// ---------- shared row renderer
+function nameRow(r, opts){
+  opts = opts || {};
+  const li = document.createElement('li');
+  const div = document.createElement('div'); div.className = 'row' + (isLiked(r)?' liked':'') + (isDisliked(r)?' disliked':'');
+  const pct = opts.score!=null ? Math.round(opts.score*100) : null;
+  div.innerHTML = `${opts.rank!=null? `<span class="rk">${opts.rank}</span>`:''}
+    <button type="button" class="main" style="${opts.rank==null?'grid-column:1/3':''}"><span class="nm">${esc(r.name)}<span class="sx ${r.sex}">${r.sex==='m'?'boy':'girl'}</span><span class="grp">${esc(gname(r.group))}</span></span>
+      <span class="meta"><span>${r.last? fmt(r.last)+' babies in '+LAST+' · #'+r.rank[LY] : 'under 5 in '+LAST}</span><span>${r.plain.length} letters · ${r.syl} syl · ${r.vow} vow · ${r.vg} grp · en ${r.en.toFixed(2)}</span>${opts.extra? `<span>${opts.extra}</span>`:''}</span>
+      ${pct!=null? `<span class="bar"><i style="width:${pct}%"></i></span>`:''}</button>
+    ${pct!=null? `<span class="sc">${pct}%</span>`:'<span class="sc"></span>'}
+    <span class="acts"><button type="button" class="lk" aria-pressed="${isLiked(r)}" aria-label="Like ${esc(r.name)}" title="Like">${isLiked(r)?'♥':'♡'}</button><button type="button" class="dk" aria-pressed="${isDisliked(r)}" aria-label="Dislike ${esc(r.name)}" title="Dislike">✕</button></span>`;
+  div.querySelector('.main').onclick = ()=> openDetail(r);
+  div.querySelector('.lk').onclick = ()=> setPref(r,'liked');
+  div.querySelector('.dk').onclick = ()=> setPref(r,'disliked');
+  li.appendChild(div); return li;
+}
+
+// ---------- render: criteria (compact: one wrapping line per criterion)
+const SHORT = { sex:'', groups:'not', letters:'letters', syllables:'syl', vowels:'vowels', vowelGroups:'vowel groups', popLast:'babies '+LAST, pop3:'babies/yr', english:'English', exclLetters:'no', exclEnd:'not ending', exclStart:'not starting' };
+function critSummary(c){
+  const p = c.params; let v = '';
+  if(c.id==='sex') v = p.value==='m'?'Boy':'Girl';
+  else if(c.id==='groups') v = (p.groups||[]).length ? 'not ' + p.groups.map(gname).join(', ') : 'no groups excluded';
+  else if(c.id==='english') v = c.mode==='hard' ? `English ≥ ${p.min}` : 'English';
+  else if(p.letters!==undefined) v = `${SHORT[c.id]} ${lettersOf(p).toUpperCase().split('').join(' ')||'—'}`;
+  else v = `${p.min}–${p.max} ${SHORT[c.id]}`;
+  return `<b>${esc(v)}</b>${c.mode==='soft'?` <span>(w${c.weight})</span>`:''}`;
+}
+let critCollapsed = false; try { critCollapsed = localStorage.getItem('nf-crit')==='1'; } catch(e){}
+function renderCritSummary(){
+  $('#crit-sum').innerHTML = state.criteria.length ? state.criteria.map(critSummary).join(' · ') : 'No criteria.';
+  $('#crit-sum').hidden = !critCollapsed; $('#crit-body').hidden = critCollapsed; $('#crit-toggle').textContent = critCollapsed ? 'edit' : 'collapse';
+}
+$('#crit-toggle').onclick = ()=>{ critCollapsed = !critCollapsed; try{ localStorage.setItem('nf-crit', critCollapsed?'1':'0'); }catch(e){} renderCritSummary(); };
+function renderCriteria(){
+  const box = $('#criteria'); box.innerHTML='';
+  if(!state.criteria.length) box.innerHTML = '<p class="empty">No criteria yet. Add one below to start narrowing the list.</p>';
+  state.criteria.forEach((c,idx)=>{
+    const def = CRIT[c.id]; if(!def) return;
+    const el = document.createElement('div'); el.className='crit';
+    const title = document.createElement('span'); title.className='crit-title'; title.textContent = def.label; title.title = def.hint; el.appendChild(title);
+    const params = document.createElement('div'); params.className='params';
+    let checks = null;
+    def.params.forEach((p,pi)=>{
+      if(p.t==='multi'){
+        if(!Array.isArray(c.params[p.k])) c.params[p.k] = [];
+        const tg = document.createElement('button'); tg.type='button'; tg.className='grp-toggle'; tg.id=`c-${idx}-${p.k}-toggle`;
+        const wrap = document.createElement('div'); wrap.className='checks'; wrap.hidden = true;
+        const label = ()=>{ const n=c.params[p.k].length; tg.textContent = (n? `${n} excluded` : 'choose groups') + (wrap.hidden?' ▾':' ▴'); tg.classList.toggle('on', n>0); };
+        tg.onclick = ()=>{ wrap.hidden = !wrap.hidden; label(); };
+        p.opts.forEach(([v,t])=>{
+          const lab = document.createElement('label'); const cb = document.createElement('input'); cb.type='checkbox'; cb.id=`c-${idx}-${p.k}-${v}`; cb.checked = c.params[p.k].includes(v);
+          cb.onchange = ()=>{ const set = new Set(c.params[p.k]); cb.checked? set.add(v): set.delete(v); c.params[p.k] = [...set]; label(); update(); };
+          lab.appendChild(cb); lab.appendChild(document.createTextNode(t)); wrap.appendChild(lab);
+        });
+        label(); params.appendChild(tg); checks = wrap; return;
+      }
+      if(pi>0 && p.k==='max'){ const sep=document.createElement('span'); sep.className='sep'; sep.textContent='–'; params.appendChild(sep); }
+      let inp;
+      if(p.t==='select'){ inp = document.createElement('select'); p.opts.forEach(([v,t])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; inp.appendChild(o); }); inp.value = c.params[p.k]; }
+      else { inp = document.createElement('input'); inp.type = p.t; inp.value = c.params[p.k] ?? ''; if(p.t==='number'){ inp.step = p.step||1; inp.min = p.minv ?? 0; if(p.maxv!=null) inp.max=p.maxv; inp.inputMode = p.step? 'decimal':'numeric'; } else { inp.autocapitalize='characters'; inp.placeholder='letters'; } }
+      inp.id = `c-${idx}-${p.k}`; inp.setAttribute('aria-label', `${def.label}: ${p.label}`); inp.title = p.label;
+      inp.oninput = ()=>{ c.params[p.k] = p.t==='number' ? (inp.value===''? c.params[p.k] : Number(inp.value)) : inp.value; update(); };
+      params.appendChild(inp);
+    });
+    el.appendChild(params);
+    const seg = document.createElement('div'); seg.className='seg'; seg.setAttribute('role','group'); seg.setAttribute('aria-label','Filter mode');
+    seg.innerHTML = `<button type="button" data-mode="hard" aria-pressed="${c.mode==='hard'}" title="Hard filter">Hard</button><button type="button" data-mode="soft" aria-pressed="${c.mode==='soft'}" title="Weighted preference">Weight</button>`;
+    seg.querySelectorAll('[data-mode]').forEach(b=> b.onclick = ()=>{ c.mode=b.dataset.mode; renderCriteria(); update(); });
+    el.appendChild(seg);
+    if(c.mode==='soft'){
+      const w = document.createElement('label'); w.className='weight'; w.title='Weight';
+      w.innerHTML = `<input type="range" min="1" max="5" step="1" id="w-${idx}" value="${c.weight}" aria-label="Weight for ${def.label}"><b>${c.weight}</b>`;
+      w.querySelector('input').oninput = e=>{ c.weight = Number(e.target.value); w.querySelector('b').textContent=c.weight; update(); };
+      el.appendChild(w);
+    }
+    const x = document.createElement('button'); x.type='button'; x.className='x'; x.setAttribute('aria-label',`Remove ${def.label}`); x.textContent='×';
+    x.onclick = ()=>{ state.criteria.splice(idx,1); renderCriteria(); renderAdd(); update(); };
+    el.appendChild(x);
+    if(checks) el.appendChild(checks);
+    box.appendChild(el);
+  });
+  renderCritSummary();
+}
+function renderAdd(){
+  const box = $('#add'); box.innerHTML='';
+  const used = new Set(state.criteria.map(c=>c.id));
+  ORDER.filter(id=>!used.has(id)).forEach(id=>{
+    const b = document.createElement('button'); b.type='button'; b.textContent = '+ ' + CRIT[id].label;
+    b.onclick = ()=>{ state.criteria.push({ id, mode:CRIT[id].mode, weight:3, params:JSON.parse(JSON.stringify(CRIT[id].defaults)) }); renderCriteria(); renderAdd(); update(); };
+    box.appendChild(b);
+  });
+}
+
+// ---------- render: results
+function update(){ shown = 30; persist(); renderResults(); renderCritSummary(); }
+function refreshAll(){ renderResults(); renderFav(); }
+function renderResults(){
+  current = compute();
+  const { out, soft, hidden } = current;
+  $('#summary').textContent = `${fmt(out.length)} names match the hard filters`;
+  const order = $('#order'); order.innerHTML='';
+  order.append(soft.length ? `ranked by ${soft.length} weighted criteri${soft.length>1?'a':'on'}` : `ranked by popularity ${Y[LY-2]}–${LAST}`);
+  if(hidden || showDisliked){ const b = document.createElement('button'); b.type='button'; b.textContent = showDisliked ? 'hide disliked' : `${hidden} disliked hidden`; b.onclick = ()=>{ showDisliked=!showDisliked; renderResults(); }; order.append(' · '); order.appendChild(b); }
+  const ul = $('#results'); ul.innerHTML='';
+  out.slice(0,shown).forEach((o,i)=> ul.appendChild(nameRow(o.r, { rank:i+1, score: soft.length? o.score : null })));
+  if(!out.length) ul.innerHTML = '<li class="empty">Nothing matches all hard filters. Loosen one or switch it to weighted.</li>';
+  const more = $('#more'); more.hidden = out.length <= shown; more.onclick = ()=>{ shown += 30; renderResults(); };
+}
+
+// ---------- search
+function renderSearch(){
+  const q = strip($('#q').value).replace(/[^a-z]/g,'');
+  $('#qclr').hidden = !q; const ul = $('#hits'); ul.innerHTML='';
+  $('#finder').hidden = !!q;
+  if(!q) return;
+  const pre = [], sub = [];
+  for(const r of rows){ if(r.plain.startsWith(q)) pre.push(r); else if(r.plain.includes(q)) sub.push(r); }
+  const sortf = (a,b)=> b.avg3-a.avg3 || b.total-a.total || a.name.localeCompare(b.name);
+  const list = pre.sort(sortf).concat(sub.sort(sortf)).slice(0,40);
+  if(!list.length){ ul.innerHTML = `<li class="empty">No name containing “${esc($('#q').value)}” in the Belgian data.</li>`; return; }
+  list.forEach(r=> ul.appendChild(nameRow(r, {})));
+  if(pre.length+sub.length>40){ const li=document.createElement('li'); li.className='empty'; li.textContent=`Showing 40 of ${pre.length+sub.length}. Type more letters to narrow down.`; ul.appendChild(li); }
+}
+$('#q').addEventListener('input', renderSearch);
+$('#qclr').onclick = ()=>{ $('#q').value=''; renderSearch(); $('#q').focus(); };
+
+// ---------- tabs
+function showTab(which){
+  $('#tab-find').setAttribute('aria-selected', which==='find'); $('#tab-fav').setAttribute('aria-selected', which==='fav');
+  $('#find').hidden = which!=='find'; $('#fav').hidden = which!=='fav';
+  try { localStorage.setItem('nf-tab', which); } catch(e){}
+  if(which==='fav') renderFav();
+}
+$('#tab-find').onclick = ()=> showTab('find'); $('#tab-fav').onclick = ()=> showTab('fav');
+
+// ---------- favourites: list, analysis, suggestions
+const mode = arr => { const m=new Map(); arr.forEach(v=>m.set(v,(m.get(v)||0)+1)); return [...m.entries()].sort((a,b)=>b[1]-a[1]); };
+const median = arr => { const s=[...arr].sort((a,b)=>a-b); return s.length? s[Math.floor(s.length/2)] : 0; };
+function analysis(liked){
+  const n = liked.length, facts = [];
+  const pct = c => Math.round(100*c/n)+'%';
+  const share = (pairs, f) => pairs.slice(0,2).map(([v,c])=>`${f(v)} ${pct(c)}`).join(', ');
+  const sexes = mode(liked.map(r=>r.sex)); facts.push({ b: sexes.map(([v,c])=>`${v==='m'?'boys':'girls'} ${pct(c)}`).join(', '), s:'sex' });
+  facts.push({ b: share(mode(liked.map(r=>r.syl)), v=>`${v} syllable${v>1?'s':''}`), s:'syllables' });
+  facts.push({ b: share(mode(liked.map(r=>r.vg)), v=>`${v} vowel group${v>1?'s':''}`), s:'vowel groups' });
+  facts.push({ b: share(mode(liked.map(r=>r.plain.length)), v=>`${v} letters`), s:'length' });
+  facts.push({ b: share(mode(liked.map(r=>r.group)), gname), s:'name group' });
+  facts.push({ b: share(mode(liked.map(r=>r.plain.slice(-1).toUpperCase())), v=>`…${v.toLowerCase()}`), s:'last letter' });
+  facts.push({ b: share(mode(liked.map(r=>r.plain[0].toUpperCase())), v=>`${v}…`), s:'first letter' });
+  const ends = mode(liked.map(r=>r.plain.slice(-2))).filter(([v,c])=>c>1); if(ends.length) facts.push({ b: ends.slice(0,3).map(([v,c])=>`-${v} ${pct(c)}`).join(', '), s:'shared endings' });
+  const lasts = liked.map(r=>r.last); facts.push({ b: `${fmt(median(lasts))} babies`, s:`typical popularity in ${LAST} (median; range ${fmt(Math.min(...lasts))}–${fmt(Math.max(...lasts))})` });
+  facts.push({ b: (liked.reduce((a,r)=>a+r.en,0)/n).toFixed(2), s:'average English score' });
+  const vl = liked.flatMap(r=>[...r.plain].filter(ch=>'aeiouy'.includes(ch))); const vowels = mode(vl); if(vowels.length) facts.push({ b: vowels.slice(0,3).map(([v,c])=>`${v} ${Math.round(100*c/vl.length)}%`).join(', '), s:'most used vowels (share of all vowels)' });
+  return facts;
+}
+function similarity(c, l){
+  const dsyl = Math.abs(c.syl-l.syl), dlen = Math.abs(c.plain.length-l.plain.length);
+  const pop = 1 - Math.min(1, Math.abs(Math.log10((c.last||2.5)/(l.last||2.5))));
+  let s = 0, w = 0;
+  s += 2*(dsyl===0?1:dsyl===1?0.4:0); w += 2;
+  s += 1*(c.vg===l.vg?1:0); w += 1;
+  s += 2*(c.group===l.group?1:0); w += 2;
+  s += 1.5*pop; w += 1.5;
+  s += 1.5*(c.plain.slice(-1)===l.plain.slice(-1)?1:0); w += 1.5;
+  s += 1*(c.plain.slice(-2)===l.plain.slice(-2)?1:0); w += 1;
+  s += 0.5*(c.plain[0]===l.plain[0]?1:0); w += 0.5;
+  s += 1*Math.max(0, 1-dlen/3); w += 1;
+  s += 0.5*(1-Math.abs(c.en-l.en)); w += 0.5;
+  s += 1*(c.key===l.key?1:0); w += 1; // spelling variants of a liked name
+  return s/w;
+}
+function suggestions(liked){
+  const sexes = new Set(liked.map(r=>r.sex)), likedIds = new Set(prefs.liked), disIds = new Set(prefs.disliked);
+  const cands = rows.filter(r=> sexes.has(r.sex) && r.avg3>=5 && !likedIds.has(r.id) && !disIds.has(r.id));
+  return cands.map(c=>({ r:c, score: liked.reduce((a,l)=>a+similarity(c,l),0)/liked.length }))
+    .sort((a,b)=> b.score-a.score || b.r.avg3-a.r.avg3).slice(0,20);
+}
+function renderFav(){
+  const liked = prefs.liked.map(id=>byId.get(id)).filter(Boolean);
+  const dis = prefs.disliked.map(id=>byId.get(id)).filter(Boolean);
+  $('#favcnt').textContent = liked.length ? `(${liked.length})` : '';
+  const ul = $('#liked'); ul.innerHTML=''; liked.forEach(r=> ul.appendChild(nameRow(r, {})));
+  $('#liked-empty').hidden = liked.length>0;
+  $('#analysis').hidden = liked.length<2;
+  if(liked.length>=2){
+    $('#facts').innerHTML = analysis(liked).map(f=>`<div class="fact"><b>${esc(f.b)}</b><span>${esc(f.s)}</span></div>`).join('');
+    const sl = $('#similar'); sl.innerHTML=''; suggestions(liked).forEach(o=> sl.appendChild(nameRow(o.r, { score:o.score })));
+  }
+  $('#disliked-wrap').hidden = !dis.length;
+  const dl = $('#disliked'); dl.innerHTML=''; dis.forEach(r=> dl.appendChild(nameRow(r, {})));
+  $('#ask').hidden = !sample;
+  if(!sample && liked.length>=2) $('#aiout').innerHTML = '<span class="hint">Open this page on claude.ai to ask Claude for suggestions.</span>';
+}
+$('#toggle-dis').onclick = ()=>{ const l=$('#disliked'); l.hidden=!l.hidden; $('#toggle-dis').textContent = l.hidden?'show':'hide'; };
+$('#ask').onclick = async ()=>{
+  const liked = prefs.liked.map(id=>byId.get(id)).filter(Boolean); if(!sample || !liked.length) return;
+  const dis = prefs.disliked.map(id=>byId.get(id)).filter(Boolean);
+  const btn = $('#ask'), out = $('#aiout'), list = $('#ailist'); btn.disabled = true; out.textContent = 'Thinking…'; list.innerHTML='';
+  const prompt = `We are choosing a first name for a baby in Belgium (Flanders). Names we like: ${liked.map(r=>r.name+' ('+(r.sex==='m'?'boy':'girl')+')').join(', ')}.${dis.length? ' Names we dislike: '+dis.map(r=>r.name).join(', ')+'.':''}
+Suggest 25 other first names in the same spirit (similar sound, length, style and cultural feel), for the same sex${new Set(liked.map(r=>r.sex)).size>1?'es':''}, that are plausible in Belgium. Reply with only a JSON array of strings, the names in their most common Belgian spelling, no commentary.`;
+  try {
+    const names = await sample.json(prompt, { modelTier:'default', cache:{ gcTime: 3600000 } });
+    const found = [], missing = [];
+    (Array.isArray(names)? names : []).forEach(n=>{ const p = strip(String(n)).replace(/[^a-z]/g,''); const m = rows.filter(r=> r.plain===p && !prefs.liked.includes(r.id)).sort((a,b)=>b.avg3-a.avg3)[0]; if(m && !found.includes(m)) found.push(m); else if(!m) missing.push(String(n)); });
+    out.textContent = found.length ? `${found.length} of Claude's suggestions exist in the Belgian data${missing.length? '. Not found: '+missing.join(', ') : ''}.` : 'None of the suggestions appear in the Belgian data: ' + missing.join(', ');
+    found.forEach(r=> list.appendChild(nameRow(r, {})));
+  } catch(e){
+    if(e && e.code==='not_granted'){ sample=null; out.innerHTML='<span class="hint">Claude lookup not allowed for this page.</span>'; }
+    else if(e && e.code==='invalid_json') out.textContent = 'Claude did not answer with a clean list. Try again.';
+    else if(e && e.code==='rate_limited') out.textContent = 'Too many requests for now. Try again in a moment.';
+    else if(e && e.code!=='cancelled') out.textContent = 'The request failed. Try again later.';
+  } finally { btn.disabled = false; }
+};
+
+// ---------- detail sheet
+function chartSvg(r){
+  const W=320,H=150,L=36,R=10,T=12,B=20; const max = Math.max(5, ...r.c);
+  const x = i => L + (W-L-R)*i/LY, y = v => T + (H-T-B)*(1 - v/max);
+  const pts = r.c.map((v,i)=>[x(i),y(v)]);
+  const line = pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  const area = line + ` L${x(LY).toFixed(1)} ${y(0).toFixed(1)} L${x(0).toFixed(1)} ${y(0).toFixed(1)} Z`;
+  const step = max>1000?500: max>400?200: max>160?50: max>60?20: max>20?5: 1;
+  let grid='';
+  for(let v=0; v<=max; v+=step) grid += `<line class="grid" x1="${L}" x2="${W-R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text x="${L-4}" y="${(y(v)+3).toFixed(1)}" text-anchor="end">${v}</text>`;
+  const xt = [0,10,20,LY].map(i=>`<text x="${x(i).toFixed(1)}" y="${H-6}" text-anchor="${i===0?'start':i===LY?'end':'middle'}">${Y[i]}</text>`).join('');
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Babies named ${esc(r.name)} per year">${grid}<path class="ar" d="${area}"/><path class="ln" d="${line}"/><line class="cur" id="cur" x1="${x(LY).toFixed(1)}" x2="${x(LY).toFixed(1)}" y1="${T}" y2="${H-B}"/><circle class="pt" id="pt" r="4" cx="${x(LY).toFixed(1)}" cy="${y(r.last).toFixed(1)}"/>${xt}</svg>`;
+}
+function capFor(r,i){ return `${Y[i]} · ${r.c[i]? fmt(r.c[i])+' babies · #'+r.rank[i]+' among '+(r.sex==='m'?'boys':'girls') : 'under 5 babies'}`; }
+
+function closeDetail(){ $('#sheet-root').innerHTML=''; document.body.style.overflow=''; }
+function openDetail(r){
+  const root = $('#sheet-root');
+  const vars = (byKey.get(r.key)||[]).filter(v=>v!==r).sort((a,b)=>b.avg3-a.avg3 || b.total-a.total);
+  const crits = current ? current.active.map(c=>{ const s=c.def.score(r,c.params), h=c.def.hard(r,c.params);
+      return `<li><span>${c.def.label} <span class="hint">(${c.mode==='hard'?'hard':'weight '+c.weight})</span></span><span class="${c.mode==='hard'?(h?'ok':'no'):(s>=0.99?'ok':s>0?'':'no')}">${c.mode==='hard'?(h?'passes':'fails'):Math.round(s*100)+'%'}</span></li>`; }).join('') : '';
+  root.innerHTML = `<div class="sheet-bg" id="bg"></div><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(r.name)}">
+    <div class="sheet-head"><h3>${esc(r.name)} <span class="sx ${r.sex}">${r.sex==='m'?'boy':'girl'}</span></h3><button type="button" class="x" id="close" aria-label="Close">×</button></div>
+    <div class="sheet-acts"><button type="button" class="lk" id="s-lk" aria-pressed="${isLiked(r)}">${isLiked(r)?'♥ Liked':'♡ Like'}</button><button type="button" class="dk" id="s-dk" aria-pressed="${isDisliked(r)}">${isDisliked(r)?'✕ Disliked':'✕ Dislike'}</button></div>
+    <div class="stats">
+      <div class="stat"><b>${r.last? fmt(r.last):'<5'}</b><span>babies in ${LAST}${r.last?' · #'+r.rank[LY]:''}</span></div>
+      <div class="stat"><b>${r.avg3>=1? fmt(Math.round(r.avg3)):'<5'}</b><span>per year ${Y[LY-2]}–${LAST}</span></div>
+      <div class="stat"><b>${fmt(r.total)}</b><span>total 1995–${LAST}</span></div>
+      <div class="stat"><b>${r.plain.length} · ${r.syl}</b><span>letters · syllables (est.)</span></div>
+      <div class="stat"><b>${r.vow} · ${r.vg}</b><span>vowels · vowel groups</span></div>
+      <div class="stat"><b>${r.en.toFixed(2)}</b><span>English score${r.us?' · used in US':''}</span></div>
+      <div class="stat"><b>${esc(gname(r.group))}</b><span>name group</span></div>
+    </div>
+    <h4>Origin and meaning</h4>
+    <p class="meaning" id="meaning"></p>
+    <p class="hint links" id="mlinks"></p>
+    <h4>Babies per year in Belgium</h4>
+    ${chartSvg(r)}
+    <p class="cap" id="cap">${capFor(r,LY)}</p>
+    <h4>Other spellings</h4>
+    <div class="vars" id="vars">${vars.length? vars.map(v=>`<button type="button" data-i="${v.i}"><b>${esc(v.name)}</b> <span class="sx ${v.sex}">${v.sex==='m'?'boy':'girl'}</span> ${v.last? fmt(v.last)+' in '+LAST : '<5 in '+LAST}</button>`).join('') : '<span class="hint">No other spelling found in the Belgian data.</span>'}</div>
+    ${crits? `<h4>Against your criteria</h4><ul class="crits">${crits}</ul>`:''}
+  </div>`;
+  document.body.style.overflow='hidden';
+  $('#bg').onclick = closeDetail; $('#close').onclick = closeDetail;
+  $('#s-lk').onclick = ()=>{ setPref(r,'liked'); openDetail(r); };
+  $('#s-dk').onclick = ()=>{ setPref(r,'disliked'); openDetail(r); };
+  root.querySelectorAll('#vars button').forEach(b=> b.onclick = ()=> openDetail(rows[Number(b.dataset.i)]));
+  const svg = root.querySelector('svg'); const W=320,L=36,R=10;
+  const move = e => { const rect = svg.getBoundingClientRect(); const px = (e.clientX-rect.left)/rect.width*W; const i = Math.max(0, Math.min(LY, Math.round((px-L)/(W-L-R)*LY)));
+    const x = L + (W-L-R)*i/LY; const max=Math.max(5,...r.c); const y = 12 + (150-12-20)*(1-r.c[i]/max);
+    $('#cur').setAttribute('x1',x); $('#cur').setAttribute('x2',x); $('#pt').setAttribute('cx',x); $('#pt').setAttribute('cy',y); $('#cap').textContent = capFor(r,i); };
+  svg.addEventListener('pointermove', move); svg.addEventListener('pointerdown', move);
+  loadMeaning(r);
+}
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeDetail(); });
+
+// ---------- meaning lookup (Claude via the sample capability, cached)
+const mkey = r => r.plain + '_' + r.sex;
+async function loadMeaning(r){
+  const el = $('#meaning'), links = $('#mlinks');
+  const q = encodeURIComponent(r.name);
+  links.innerHTML = `Look up elsewhere: <a href="https://www.behindthename.com/names/search.php?terms=${q}" target="_blank" rel="noopener">Behind the Name</a> · <a href="https://nl.wikipedia.org/w/index.php?search=${q}+voornaam" target="_blank" rel="noopener">Wikipedia (NL)</a> · <a href="https://en.wikipedia.org/w/index.php?search=${q}+given+name" target="_blank" rel="noopener">Wikipedia (EN)</a>`;
+  const built = (window.NF_MEANINGS||{})[r.name];
+  if(built){ el.textContent = built; return; }
+  let cached = null;
+  try { cached = localStorage.getItem('nf-m-'+mkey(r)); } catch(e){}
+  if(!cached && db){ try { const snap = await db.doc('meanings/'+mkey(r)).get(); if(snap.exists) cached = snap.data().text; } catch(e){} }
+  if(cached){ if($('#meaning')) $('#meaning').textContent = cached; return; }
+  if(!sample){ el.innerHTML = '<span class="hint">No note for this rare name yet. Use the links below.</span>'; return; }
+  el.textContent = 'Thinking…';
+  const prompt = `Give very basic information about the first name "${r.name}", recorded in Belgium as a ${r.sex==='m'?"boy's":"girl's"} name. Reply in English in 2 to 4 short sentences: its origin (language or culture), its meaning, and one or two related names or spellings. If the name is rare or uncertain, say what is most likely and flag the uncertainty. No preamble, no headings.`;
+  try {
+    const { text } = await sample(prompt, { modelTier:'quick', cache:{ gcTime: 86400000 }, onText:({text})=>{ if($('#meaning')) $('#meaning').textContent = text; } });
+    if($('#meaning')) $('#meaning').textContent = text;
+    try { localStorage.setItem('nf-m-'+mkey(r), text); } catch(e){}
+    if(db && dbWritable) db.doc('meanings/'+mkey(r)).set({ name:r.name, sex:r.sex, text, at:new Date().toISOString() }).catch(()=>{});
+  } catch(e){
+    if(!$('#meaning')) return;
+    if(e && e.code==='not_granted'){ sample = null; $('#meaning').innerHTML = '<span class="hint">Claude lookup not allowed for this page. Use the links below.</span>'; }
+    else if(e && e.code==='rate_limited') $('#meaning').innerHTML = '<span class="hint">Too many lookups for now. Try again in a moment.</span>';
+    else if(e && e.code!=='cancelled') $('#meaning').innerHTML = '<span class="hint">Lookup failed. Use the links below.</span>';
+  }
+}
+
+// ---------- boot
+renderCriteria(); renderAdd(); renderResults(); renderFav();
+let tab = 'find'; try { tab = localStorage.getItem('nf-tab') || 'find'; } catch(e){} showTab(tab);
+(async ()=>{
+  if(!window.claude || !window.claude.use) return;
+  const [d, s] = await Promise.all([window.claude.use('db'), window.claude.use('sample')]);
+  sample = s; renderFav();
+  if(!d) return;
+  db = d;
+  try { const snap = await db.doc('config/current').get();
+    if(snap.exists && Array.isArray(snap.data().criteria)){ state.criteria = JSON.parse(JSON.stringify(snap.data().criteria)); try{ localStorage.setItem('nf-state', JSON.stringify(state)); }catch(e){} renderCriteria(); renderAdd(); renderResults(); }
+  } catch(e){}
+  // likes and dislikes are shared: follow the document live so both phones stay in sync
+  db.doc('prefs/current').onSnapshot(snap=>{
+    if(!snap.exists) return; const d = snap.data();
+    const next = { liked: Array.isArray(d.liked)? [...d.liked]:[], disliked: Array.isArray(d.disliked)? [...d.disliked]:[] };
+    if(JSON.stringify(next)===JSON.stringify(prefs)) return;
+    prefs = next; try{ localStorage.setItem('nf-prefs', JSON.stringify(prefs)); }catch(e){} refreshAll();
+  }, ()=>{});
+})();
+})();
+</script>
+
+</body>
+</html>
